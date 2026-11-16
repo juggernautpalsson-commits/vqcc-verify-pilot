@@ -1,0 +1,12 @@
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*.so.orig
+
+# Local verifier run outputs (the workflow uploads these as artifacts instead)
+result.json
+verify.log
+
+# Local virtualenvs
+.venv/
+venv/
