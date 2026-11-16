@@ -1,0 +1,58 @@
+# Pilot: run the official invsqrt verifier on one committed leg file.
+#
+# Manual trigger only (Actions tab -> "Run workflow"). No schedule, no
+# push trigger, no secrets, no downloads: everything the run needs is
+# committed in this repo. Expected runtime ~15-30 min on the standard
+# 4-vCPU runner, well inside the 6-hour job cap.
+#
+# The verifier prints a JSON summary to stdout (status PASS/FAIL plus the
+# measured score). That JSON and the stderr log are uploaded as the
+# `invsqrt-verification` artifact when the run finishes.
+
+name: verify-pilot
+
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-invsqrt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install numpy scipy
+
+      - name: Smoke-check the simulator module
+        # kickmix.so is a compiled CPython 3.13 extension. Fail fast here
+        # if it does not load on the runner, before the ~15 min verify run.
+        run: |
+          export PYTHONPATH="$GITHUB_WORKSPACE/kickmix"
+          python -c "import kickmix; print('kickmix OK:', kickmix.__file__)"
+
+      - name: Run official invsqrt verifier
+        run: |
+          export PYTHONPATH="$GITHUB_WORKSPACE/kickmix:$GITHUB_WORKSPACE/verifiers"
+          python verifiers/invsqrt/verify_submission_invsqrt.py legs/invsqrt.kmb > result.json 2> verify.log
+          cat result.json
+
+      - name: Upload verification result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invsqrt-verification
+          path: |
+            result.json
+            verify.log
+          if-no-files-found: error
